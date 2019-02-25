@@ -79,6 +79,7 @@ def decide_matze(stats, row):
 
 
 input_keys = ['max', 'min', 'sum', 'sum_without_max', 'avg', 'avg_without_max', 'rows']
+input_keys = ['max', 'sum', 'sum_without_max', 'avg', 'avg_without_max', 'rows']
 threadcount = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 thread_loookup = {x: threadcount[x] for x in range(11)}
 model = None
@@ -88,7 +89,7 @@ def decide_nn_full(stats, row):
     global model
     if model is None:
         from keras.engine.saving import load_model
-        model = load_model("models/7x5x11-full.h5")
+        model = load_model("models/6x5x11-full.h5")
     stats = stats["stats"][row]
     input = np.asarray([[stats[x] for x in input_keys], ])
     return thread_loookup[np.argmax(model.predict([input], batch_size=1))]
@@ -143,10 +144,10 @@ if __name__ == "__main__":
     random.seed(1)
     mats = load_all(fraction=1)
 
-    write_results(multiproc_eval(decide_nn_pruned, mats), "nnpruned")
+    #write_results(multiproc_eval(decide_nn_pruned, mats), "nnpruned")
     write_results(multiproc_eval(decide_nn_full, mats), "nnfull")
-    write_results(multiproc_eval(decide_matze, mats), "matze")
-    write_results(multiproc_eval(decide_32, mats), "32")
+    #write_results(multiproc_eval(decide_matze, mats), "matze")
+    #write_results(multiproc_eval(decide_32, mats), "32")
 
     """
     % iterations  113.38444601101061  8:41 nn
