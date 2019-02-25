@@ -84,11 +84,20 @@ thread_loookup = {x: threadcount[x] for x in range(11)}
 model = None
 
 
-def decide_nn(stats, row):
+def decide_nn_full(stats, row):
     global model
     if model is None:
         from keras.engine.saving import load_model
-        model = load_model("test2", custom_objects={"MaskedDense": MaskedDense})
+        model = load_model("models/7x5x11-full.h5")
+    stats = stats["stats"][row]
+    input = np.asarray([[stats[x] for x in input_keys], ])
+    return thread_loookup[np.argmax(model.predict([input], batch_size=1))]
+
+def decide_nn_pruned(stats, row):
+    global model
+    if model is None:
+        from keras.engine.saving import load_model
+        model = load_model("models/7x5x11-pruned.h5", custom_objects={"MaskedDense": MaskedDense})
     stats = stats["stats"][row]
     input = np.asarray([[stats[x] for x in input_keys], ])
     return thread_loookup[np.argmax(model.predict([input], batch_size=1))]
@@ -123,7 +132,7 @@ def singleproc_eval(func, mats):
 def write_results(results, name):
     results = sorted(results, key=lambda x: x[0])
     with open(name + ".csv", "w") as f:
-        f.writelines("\n".join(",".join(str(x) for x in results)))
+        f.writelines("\n".join(str(x) for x in results))
 
     my_iters = sum(x[2] for x in results)
     ideal_iters = sum(x[1] for x in results)
@@ -134,8 +143,10 @@ if __name__ == "__main__":
     random.seed(1)
     mats = load_all(fraction=1)
 
-    write_results(multiproc_eval(decide_nn, mats), "nn")
-    # write_results(multiproc_eval(decide_32, mats), "32")
+    write_results(multiproc_eval(decide_nn_pruned, mats), "nnpruned")
+    write_results(multiproc_eval(decide_nn_full, mats), "nnfull")
+    write_results(multiproc_eval(decide_matze, mats), "matze")
+    write_results(multiproc_eval(decide_32, mats), "32")
 
     """
     % iterations  113.38444601101061  8:41 nn
