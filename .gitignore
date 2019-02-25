@@ -1,0 +1,6 @@
+mat/*
+__pycache__
+*.pyc
+src/logs
+*.npy
+*.csv
