@@ -4,7 +4,7 @@ import keras
 import numpy as np
 from keras import Sequential
 from keras import backend as K
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, ModelCheckpoint
 from keras.engine.saving import load_model
 from keras.layers import Dense, Lambda
 from sklearn.model_selection import train_test_split
@@ -14,6 +14,7 @@ import tensorflow as tf
 def load_inputs_outputs():
     return np.load("inputs.npy"), np.load("outputs.npy")
 
+
 mask0 = [[1, 1, 1, 0, 1],
          [0, 0, 0, 1, 1],
          [0, 1, 1, 0, 0],
@@ -21,6 +22,14 @@ mask0 = [[1, 1, 1, 0, 1],
          [0, 1, 1, 1, 1],
          [0, 1, 1, 0, 0],
          [0, 1, 1, 0, 1]]
+
+mask_without_min = [[1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 0],
+                    [0, 1, 1, 0, 0],
+                    [1, 1, 0, 0, 1],
+                    [1, 1, 0, 0, 1],
+                    [1, 1, 0, 0, 1]]
+
 
 # mask0 = np.ones((7,5))
 
@@ -39,10 +48,9 @@ class MaskedDense(Dense):
         return output
 
 
-
 def create_masked():
     model = Sequential()
-    model.add(MaskedDense(5, weight_mask=mask0, kernel_initializer='normal', activation='relu'))
+    model.add(MaskedDense(5, kernel_initializer='normal', activation='relu'))
     model.add(Dense(11, kernel_initializer='normal', activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
@@ -58,6 +66,7 @@ def create_smaller():
 
 if __name__ == "__main__":
     inputs, outputs = load_inputs_outputs()
+    inputs = inputs[:, (0, 2, 3, 4, 5, 6)]
 
     X_train, X_test, y_train, y_test = train_test_split(inputs, outputs, test_size=0.10, random_state=0)
     y_train = keras.utils.to_categorical(y_train, num_classes=11)
@@ -72,16 +81,18 @@ if __name__ == "__main__":
         update_freq=batch_size * 100
     )
 
+    snapshot = ModelCheckpoint(filepath="./test")
+
     model = create_masked()
 
-    #o_model = load_model("test")
-    #model.set_weights(o_model.get_weights())
+    o_model = load_model("models/6x5x11-full.h5")
+    model.set_weights(o_model.get_weights())
 
     model.fit(
         x=X_train,
         y=y_train,
         validation_data=(X_test, y_test),
-        callbacks=[tb],
+        callbacks=[tb, snapshot],
         epochs=10,
         batch_size=batch_size,
     )
