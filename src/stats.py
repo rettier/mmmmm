@@ -58,6 +58,7 @@ def read_stats(path):
     try:
         with open(path, "rb") as f:
             mat = mmread(f)
+        nz_per_row = np.asarray(mat.getnnz(axis=0), dtype=np.int32)
     except:
         os.unlink(path)
         print("error reading {}".format(path))
@@ -65,7 +66,6 @@ def read_stats(path):
 
     rows, cols = mat.shape
 
-    nz_per_row = np.asarray(mat.getnnz(axis=0), dtype=np.int32)
     assert len(nz_per_row) == cols  # for matrix b, since its transposed
 
     result = {
@@ -84,13 +84,15 @@ def load_and_stat(p):
         return np.load(stats_path)[()]
     else:
         mat = load_mat(p)
+        if mat == None:
+            return
         with_stats = matze_row_stats(mat)
         np.save(stats_path, np.asarray(with_stats))
         return with_stats
 
 
 def list_mats(fraction=1.0, suffix=""):
-    files = glob.glob("../mat/*.mtx{}".format(suffix))
+    files = glob.glob("/media/mathias/Data/Seafile/GraphsAndMatrices/floridadata/*.mtx{}".format(suffix))
     if fraction != 1.0:
         count = max(int(len(files) * fraction), 1)
         files = random.choices(files, k=count)

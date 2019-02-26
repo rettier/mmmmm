@@ -6,7 +6,7 @@ from pprint import pprint
 import numpy as np
 from tqdm import tqdm
 
-from src.stats import load_all_with_stats, list_mats, load_and_stat
+from stats import load_all_with_stats, list_mats, load_and_stat
 
 
 def calculate_iterations(calculations, threads, threads_available):
@@ -56,6 +56,8 @@ def process_best(f):
         return
 
     mat = load_and_stat(f)
+    if mat == None:
+        return
     result = calculate_best(mat)
     np.save(path, np.asarray(result))
 
@@ -66,8 +68,10 @@ if __name__ == "__main__":
     files = list_mats(fraction=1.0)
     pool = Pool(processes=16)
     try:
-        for _ in tqdm(pool.imap_unordered(process_best, files), total=len(files)):
-            pass
+        for x in files:
+            process_best(x)
+        # for _ in tqdm(pool.imap_unordered(process_best, files), total=len(files)):
+        #     pass
     finally:
         pool.close()
 

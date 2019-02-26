@@ -7,18 +7,25 @@ from stats import list_mats
 
 
 def load_best_and_stats(f):
-    return np.load(f + ".train.npy")[()]
+    try:
+        return np.load(f + ".train.npy")[()]
+    except:
+        return None
 
 
 def load_all(count=None, fraction=1.0):
     files = list_mats(fraction=fraction, suffix=".best.npy")
     if count is not None:
         files = files[:count]
-    pool = Pool(processes=16)
-    try:
-        return list(tqdm(pool.imap_unordered(load_best_and_stats, files), total=len(files)))
-    finally:
-        pool.close()
+    results = []
+    for f in files:
+        results.append(load_best_and_stats(f))
+    return results
+    # pool = Pool(processes=16)
+    # try:
+    #     return list(tqdm(pool.imap_unordered(load_best_and_stats, files), total=len(files)))
+    # finally:
+    #     pool.close()
 
 
 def _generate_reduced_data(f):
@@ -39,15 +46,22 @@ def generate_reduced_data(count=None):
     if count is not None:
         files = files[:count]
     pool = Pool(processes=16)
-    try:
-        return list(tqdm(pool.imap_unordered(_generate_reduced_data, files), total=len(files)))
-    finally:
-        pool.close()
+    result = []
+    for f in files:
+        result.append(_generate_reduced_data(f))
+    return result
+    # try:
+    #     return list(tqdm(pool.imap_unordered(_generate_reduced_data, files), total=len(files)))
+    # finally:
+    #     pool.close()
 
 
 def generate_input_and_output(data):
     unrolled = []
     for mat in data:
+        if data is None:
+            continue
+
         stats = mat["stats"]
         best = mat["best"]
         for row in stats:
@@ -72,7 +86,9 @@ def generate_input_and_output(data):
 
 
 if __name__ == "__main__":
+    generate_reduced_data()
     data = load_all()
+    
     inputs, outputs = generate_input_and_output(data)
     np.save("inputs.npy", inputs)
     np.save("outputs.npy", outputs)
