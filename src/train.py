@@ -37,13 +37,19 @@ class idx:
     t1024 = 10
 
 
-def load_inputs_outputs(threads=64, max_count=4000000):
-    data = np.load("/media/mathias/Data/trainingdata/{}.npy".format(threads))
+def load_inputs_outputs(threads=64, max_count=4000000, load_1M=False):
+    if load_1M:
+        data = np.load("/media/mathias/Data/trainingdata/{}_1M.npy".format(threads))
+    else:
+        data = np.load(
+            "/media/mathias/Data/trainingdata/{}.npy".format(threads))
     data = data[data[:, idx.cols] != 0]
     data = data[data[:, idx.avg] != 0]
     data = data[data[:, idx.max] != 0]
     steps = max(1, int(np.floor(len(data) / max_count)))
     data = data[::steps, ...]
+
+    # np.save("/media/mathias/Data/trainingdata/{}_1M.npy".format(threads), data)
 
     inputs = np.ndarray(shape=(data.shape[0], 7))
 

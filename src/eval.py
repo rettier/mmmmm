@@ -156,8 +156,8 @@ def write_results(results, name):
     my_iters = sum(x[2] for x in results)
     ideal_iters = sum(x[1] for x in results)
     arr = np.asarray(results)
-    diff = arr[:, 2] - arr[:, 1]
-    diff = diff * diff
+    my_iters_squared = sum(x[2]*x[2] for x in results)
+    ideal_iters_squared = sum(x[1]*x[1] for x in results)
     
 
     # import matplotlib.pyplot as plt
@@ -169,49 +169,64 @@ def write_results(results, name):
     # plt.hist(outputs)
     # plt.show()
 
-    print("{} iterations, {} square iterations".format(100 * float(my_iters) / ideal_iters, 100 * math.sqrt(float(np.sum(diff) / ideal_iters))))
+    print("{} iterations, {} square iterations".format(100 * float(my_iters) /
+                                                       ideal_iters, 100 * math.sqrt(float(my_iters_squared) / ideal_iters_squared)))
 
 
 def decide_super_matze_2(stats):
+    # return 32
     # stats[idx.max] = 20
     # stats[idx.sum] = 206
     # stats[idx.cols] = 14
-    # stats[idx.max] = 18
-    # stats[idx.sum] = 236
-    # stats[idx.cols] = 16
-    maxOperationsPerCol = stats[idx.max]
-    cols = stats[idx.cols]
-    sumOps = stats[idx.sum]
-    sumOps2 = stats[idx.sum] - stats[idx.max]
+    # stats[idx.max] = 50
+    # stats[idx.sum] = 1950
+    # stats[idx.cols] = 45
+    maxOpsPerCol = int(stats[idx.max])
+    cols = int(stats[idx.cols])
+    sumOps = int(stats[idx.sum])
+    sumOps2 = int(stats[idx.sum] - stats[idx.max])
 
     opsPerNnz = max(1.0, sumOps2 / cols)
-    threads = round(max(0, min(THREADS_LOG2, math.log2(opsPerNnz))))
-    threads += min(min(THREADS_LOG2 - threads, 2),
-                   int(maxOperationsPerCol * maxOpsWeight) >> threads)
-    # if threads >= 4:
-    #     threads -= min(2, cols // threads // threads)
+    avg_threads = round(max(0, min(THREADS_LOG2, math.log2(opsPerNnz))))
+    threads = avg_threads
+    colIters = math.ceil(cols / (THREADS / (1 << threads)))
+    maxIters = math.ceil(maxOpsPerCol / (1 << threads))
+    if maxIters > colIters * 2:
+        threads += min(THREADS_LOG2 - threads, max(1, int(math.log2(maxIters // colIters // 2))))
 
-    threads -= min(2, (cols >> threads) // 5 //
-                   (maxOperationsPerCol >> threads))
+    colIters = math.ceil(cols / (THREADS / (1 << threads)))
+    maxIters = math.ceil(maxOpsPerCol / (1 << threads))
+    if (1 << threads) * 2 > (sumOps2 / cols) and colIters > maxIters * 2:
+        threads -= min(threads // 2, max(1, int(math.log2(colIters // maxIters // 2))))
 
     threads = max(0, threads)
-    totalConcurrentops = cols << threads
-    threads += min(3, (THREADS >> 2) // totalConcurrentops)
+    concurrentOps = cols << threads
+
+    if concurrentOps < THREADS:
+        threads += int(math.log2(THREADS / concurrentOps))
+
+    threads = min(THREADS_LOG2, threads)
+    threads = max(0, threads)
+
+    optimum = min(stats[5:])
+    myIter = stats[5+threads]
+
+    if myIter >= optimum * 2:
+        print("{}% more iterations than best case".format(100*myIter/optimum))
 
     return min(THREADS, (1 << threads))
 
-THREADS = 512
+THREADS = 256
 THREADS_LOG2 = int(np.log2(THREADS))
-maxOpsWeight = [1.0, 1.25, .95, 0.1, 0.1][THREADS_LOG2-6]
 if __name__ == "__main__":
     random.seed(1)
     # mats = load_all(fraction=1)
     count = 10000
-    inputs, outputs, iterations = load_inputs_outputs(threads=THREADS, max_count=count)
+    inputs, outputs, iterations = load_inputs_outputs(threads=THREADS, max_count=count, load_1M=True)
 
     if True:
         inputs = np.load(
-            "/media/mathias/Data/trainingdata/{}.npy".format(THREADS))
+            "/media/mathias/Data/trainingdata/{}_1M.npy".format(THREADS))
         inputs = inputs[inputs[:, idx.cols] != 0]
         inputs = inputs[inputs[:, idx.avg] != 0]
         inputs = inputs[inputs[:, idx.max] != 0]
