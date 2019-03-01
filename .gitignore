@@ -5,3 +5,4 @@ src/logs
 *.npy
 *.csv
 .vscode/*
+logs/*

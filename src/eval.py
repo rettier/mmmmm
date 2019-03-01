@@ -54,17 +54,37 @@ def decide_matze(stats):
     elif maxOperationsPerCol > (1 << threads) * 20 and lastMinusStart < 256:
         threads += 1
 
-    if lastMinusStart * 4 > THREADS_LOG2 and threads >= 6:
+    if lastMinusStart * 16 > THREADS_LOG2 and threads >= 7:
         threads -= 1
-    if lastMinusStart * 2 > THREADS_LOG2 and threads >= 5:
+    if lastMinusStart * 8 > THREADS_LOG2 and threads >= 5:
         threads -= 1
 
     totalConcurrentops = lastMinusStart * (1 << threads)
     if totalConcurrentops < THREADS >> 2:
-        threads += 1
+        threads += 2
     elif totalConcurrentops < THREADS >> 1:
         threads += 1
 
+    return min(THREADS, (1 << threads))
+
+
+def decide_super_matze(stats):
+    maxOperationsPerCol = stats[idx.max]
+    cols = stats[idx.cols]
+    sumOps = stats[idx.sum]
+    sumOps2 = stats[idx.sum] - stats[idx.max]
+
+    opsPerNnz = max(1.0, sumOps2 / cols)
+    threads = round(max(0, min(THREADS_LOG2, math.log2(opsPerNnz))))
+    threads += min(THREADS_LOG2 - threads, int(maxOperationsPerCol * 0.8 / (1 << threads)))
+    if threads >= 4:
+        threads -= min(2, cols // threads // threads)
+
+    threads = max(0, threads)
+    totalConcurrentops = cols * (1 << threads)
+    threads += min(3, (THREADS >> 2) // totalConcurrentops)
+
+    return min(THREADS, (1 << threads))
     return min(THREADS, (1 << threads))
 
 
@@ -124,8 +144,8 @@ def multiproc_eval(func, ):
     return list(tqdm(pool.imap_unordered(partial(eval, func), range(count)), total=count))
 
 
-def singleproc_eval(func, mats):
-    return [eval(func, mat) for mat in mats]
+def singleproc_eval(func,):
+    return [eval(func, i) for i in range(len(inputs))]
 
 
 def write_results(results, name):
@@ -135,29 +155,85 @@ def write_results(results, name):
 
     my_iters = sum(x[2] for x in results)
     ideal_iters = sum(x[1] for x in results)
+    arr = np.asarray(results)
+    diff = arr[:, 2] - arr[:, 1]
+    diff = diff * diff
+    
 
-    import matplotlib.pyplot as plt
-    plt.title("func")
-    plt.hist(list(x[0] for x in results))
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # plt.title("func")
+    # plt.hist(list(x[0] for x in results))
+    # plt.show()
 
-    plt.title("ideal")
-    plt.hist(outputs)
-    plt.show()
+    # plt.title("ideal")
+    # plt.hist(outputs)
+    # plt.show()
 
-    print("% iterations", 100 * float(my_iters) / ideal_iters)
+    print("{} iterations, {} square iterations".format(100 * float(my_iters) / ideal_iters, 100 * math.sqrt(float(np.sum(diff) / ideal_iters))))
 
 
-THREADS = 64
+def decide_super_matze_2(stats):
+    # stats[idx.max] = 20
+    # stats[idx.sum] = 206
+    # stats[idx.cols] = 14
+    # stats[idx.max] = 18
+    # stats[idx.sum] = 236
+    # stats[idx.cols] = 16
+    maxOperationsPerCol = stats[idx.max]
+    cols = stats[idx.cols]
+    sumOps = stats[idx.sum]
+    sumOps2 = stats[idx.sum] - stats[idx.max]
+
+    opsPerNnz = max(1.0, sumOps2 / cols)
+    threads = round(max(0, min(THREADS_LOG2, math.log2(opsPerNnz))))
+    threads += min(min(THREADS_LOG2 - threads, 2),
+                   int(maxOperationsPerCol * maxOpsWeight) >> threads)
+    # if threads >= 4:
+    #     threads -= min(2, cols // threads // threads)
+
+    threads -= min(2, (cols >> threads) // 5 //
+                   (maxOperationsPerCol >> threads))
+
+    threads = max(0, threads)
+    totalConcurrentops = cols << threads
+    threads += min(3, (THREADS >> 2) // totalConcurrentops)
+
+    return min(THREADS, (1 << threads))
+
+THREADS = 512
 THREADS_LOG2 = int(np.log2(THREADS))
+maxOpsWeight = [1.0, 1.25, .95, 0.1, 0.1][THREADS_LOG2-6]
 if __name__ == "__main__":
     random.seed(1)
     # mats = load_all(fraction=1)
-    inputs, outputs, iterations = load_inputs_outputs(threads=THREADS, max_count=10000000)
+    count = 10000
+    inputs, outputs, iterations = load_inputs_outputs(threads=THREADS, max_count=count)
+
+    if True:
+        inputs = np.load(
+            "/media/mathias/Data/trainingdata/{}.npy".format(THREADS))
+        inputs = inputs[inputs[:, idx.cols] != 0]
+        inputs = inputs[inputs[:, idx.avg] != 0]
+        inputs = inputs[inputs[:, idx.max] != 0]
+        steps = max(1, int(np.floor(len(inputs) / count)))
+        inputs = inputs[::steps, ...]
+        write_results(singleproc_eval(decide_super_matze_2), "super-matze")
+    else:
+        write_results(singleproc_eval(
+            partial(decide_nn, "{}.h5".format(THREADS))), "nn")
+
+
+    # global model
+    # if model is None:
+    #     from keras.engine.saving import load_model
+    #     model = load_model(model_path, custom_objects={
+    #         "custom_loss": custom_loss,
+    #         "top3_acc": topk
+    #     })
+    # return thread_loookup[np.argmax(model.predict(np.asarray([stats[:18]]), batch_size=1))]
 
     # write_results(multiproc_eval(decide_nn_pruned, mats), "nnpruned")
     # write_results(multiproc_eval(decide_matze), "matze")
-    write_results(multiproc_eval(partial(decide_nn, "64.h5")), "nn")
     # write_results(multiproc_eval(partial(decide, 32)), "32")
 
     """

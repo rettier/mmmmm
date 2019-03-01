@@ -10,7 +10,7 @@ from keras.layers import Dense, Lambda
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
-model = load_model("src/models/7x5x11-full.h5")
+model = load_model("src/models/6x5x11-full.h5")
 
 layers = 0
 for layer in model.layers:

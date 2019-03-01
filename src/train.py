@@ -19,8 +19,8 @@ class idx:
     rms = 3
     cols = 4
     avg = 5
-    sum_without_max = 6
-    avg_without_max = 7
+    avg_without_max = 6
+    sum_without_max = 7
 
     in_out_split = 5
 
@@ -38,22 +38,32 @@ class idx:
 
 
 def load_inputs_outputs(threads=64, max_count=4000000):
-    data = np.load("../new/{}.npy".format(threads))
+    data = np.load("/media/mathias/Data/trainingdata/{}.npy".format(threads))
     data = data[data[:, idx.cols] != 0]
     data = data[data[:, idx.avg] != 0]
-    data = data[:max_count, ...]
+    data = data[data[:, idx.max] != 0]
+    steps = max(1, int(np.floor(len(data) / max_count)))
+    data = data[::steps, ...]
 
-    inputs = np.ndarray(shape=(data.shape[0], idx.sum_without_max + 6))
+    inputs = np.ndarray(shape=(data.shape[0], 7))
 
-    inputs[:, :idx.in_out_split] = data[:, :idx.in_out_split]
-    inputs[:, idx.avg] = data[:, idx.sum] / data[:, idx.cols]
-    inputs[:, idx.avg_without_max] = (data[:, idx.sum] - data[:, idx.max]) / data[:, idx.cols]
-    inputs[:, idx.sum_without_max] = data[:, idx.sum] - data[:, idx.max]
-    inputs[:, idx.sum_without_max + 1] = data[:, idx.rms] - data[:, idx.avg]
-    inputs[:, idx.sum_without_max + 2] = data[:, idx.cols] * data[:, idx.min]
-    inputs[:, idx.sum_without_max + 3] = data[:, idx.max] - data[:, idx.min]
-    inputs[:, idx.sum_without_max + 4] = data[:, idx.cols] / data[:, idx.avg]
-    inputs[:, idx.sum_without_max + 5] = data[:, idx.max] / data[:, idx.avg]
+    inputs[:, 0] = data[:, idx.sum] / data[:, idx.cols] / threads
+    inputs[:, 1] = inputs[:, 0] / data[:, idx.max]
+    inputs[:, 2] = (data[:, idx.sum] - data[:, idx.max]) / threads
+    inputs[:, 3] = data[:, idx.rms] / threads
+    inputs[:, 4] = (data[:, idx.sum] - data[:, idx.max]) / data[:, idx.cols] / threads
+    inputs[:, 5] = (inputs[:, 0] - data[:, idx.cols]) / inputs[:, 0]
+    inputs[:, 6] = 1. / data[:, idx.cols]
+
+    # inputs[:, :idx.in_out_split] = data[:, :idx.in_out_split]
+    # inputs[:, idx.avg] = data[:, idx.sum] / data[:, idx.cols]
+    # inputs[:, idx.avg_without_max] = (data[:, idx.sum] - data[:, idx.max]) / data[:, idx.cols]
+    # inputs[:, idx.sum_without_max] = data[:, idx.sum] - data[:, idx.max]
+    # inputs[:, idx.sum_without_max + 1] = data[:, idx.rms] - data[:, idx.avg]
+    # inputs[:, idx.sum_without_max + 2] = data[:, idx.cols] * data[:, idx.min]
+    # inputs[:, idx.sum_without_max + 3] = data[:, idx.max] - data[:, idx.min]
+    # inputs[:, idx.sum_without_max + 4] = data[:, idx.cols] / data[:, idx.avg]
+    # inputs[:, idx.sum_without_max + 5] = data[:, idx.max] / data[:, idx.avg]
 
     iterations = data[:, idx.in_out_split:]
     outputs = np.argmin(iterations, axis=1)
@@ -115,10 +125,10 @@ topk.__name__ = "top3_acc"
 
 def create_smaller(num_classes):
     model = Sequential()
-    model.add(Dense(128, kernel_initializer='normal', activation='relu'))
+    model.add(Dense(16, kernel_initializer='normal', activation='relu'))
     model.add(Dense(num_classes, kernel_initializer='normal', activation="sigmoid"))
 
-    model.compile(loss='binary_crossentropy', optimizer='adam',
+    model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=["accuracy", custom_loss, topk])
     return model
 
@@ -130,7 +140,9 @@ def plot_result_hist(outputs):
 
 
 if __name__ == "__main__":
-    inputs, outputs, iterations = load_inputs_outputs(threads=1024, max_count=4500000)
+    # inputs, outputs, iterations = load_inputs_outputs(threads=1024, max_count=4500000)
+    inputs, outputs, iterations = load_inputs_outputs(
+        threads=64, max_count=1000000)
     num_classes = iterations.shape[1]
     print("num_classes", num_classes)
     print("samples", inputs.shape[0])
@@ -156,8 +168,8 @@ if __name__ == "__main__":
         y=y_train,
         validation_data=(X_test, y_test),
         callbacks=[tb],
-        epochs=1,
+        epochs=10,
         batch_size=batch_size,
     )
 
-    model.save("final")
+    model.save("{}_new.h5".format(1 << (iterations.shape[1] - 1)))
